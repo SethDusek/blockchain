@@ -4,10 +4,16 @@ import "crypto/sha256"
 import "encoding/binary"
 import "bytes"
 import "math/big"
+
 type BlockHeader struct {
 	version uint32
 	prev_hash []byte
 	Nonce uint64
+}
+
+type Block struct {
+	Header BlockHeader
+	transactions []Transaction
 }
 
 func NewBlockHeader(version uint32, prev_hash []byte, nonce uint64) BlockHeader {
