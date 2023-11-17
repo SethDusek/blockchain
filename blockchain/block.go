@@ -6,13 +6,13 @@ import "bytes"
 import "math/big"
 
 type BlockHeader struct {
-	version uint32
+	version   uint32
 	prev_hash []byte
-	Nonce uint64
+	Nonce     uint64
 }
 
 type Block struct {
-	Header BlockHeader
+	Header       BlockHeader
 	transactions []Transaction
 }
 

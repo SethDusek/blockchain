@@ -18,13 +18,13 @@ type PublicKey struct {
 // A Private Key, assumes secp256r1
 type PrivateKey struct {
 	PublicKey PublicKey
-	d       *big.Int
+	d         *big.Int
 }
 
 type Signature struct {
 	Rx *big.Int
 	Ry *big.Int
-	s *big.Int
+	s  *big.Int
 }
 
 func NewPrivateKey() (*PrivateKey, error) {
@@ -78,7 +78,6 @@ func (public_key PublicKey) Verify(message []byte, signature Signature) bool {
 	hasher.Write(public_key.X.Bytes())
 	hasher.Write(public_key.Y.Bytes())
 	hasher.Write(message)
-
 
 	eDx, eDy := curve.ScalarMult(public_key.X, public_key.Y, hasher.Sum(nil))
 

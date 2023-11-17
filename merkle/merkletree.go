@@ -126,7 +126,7 @@ func (tree MerkleTree) prove_inclusion(index uint) *Proof {
 		}
 		sibling := *get_sibling(index)
 		side := left_side
-		if sibling == index + 1 {
+		if sibling == index+1 {
 			side = right_side
 		}
 		proof_node := ProofNode{side, tree.Nodes[sibling].Hash}

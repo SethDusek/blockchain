@@ -10,8 +10,8 @@ import (
 
 // An unspent transaction output.
 type UTXO struct {
-	txout     [32]byte
-	outpoint  uint32
+	txout    [32]byte
+	outpoint uint32
 }
 
 // An output has a value and a challenge (a public key that must pass verification)
@@ -25,7 +25,6 @@ type Transaction struct {
 	proofs  []schnorr.Signature
 	outputs []Output
 }
-
 
 // Generates the bytes that the signer must commit to
 func (tx Transaction) GenerateComittment() []byte {
@@ -68,7 +67,7 @@ func (tx Transaction) Verify(utxo_set map[UTXO]Output, is_coinbase bool) bool {
 			fmt.Printf("Verification of tx %x failed, no input %x\n", tx.TXID(), output)
 			return false
 		}
-		input_value+=output.value
+		input_value += output.value
 
 		public_key := output.challenge
 		if !public_key.Verify(committment, tx.proofs[i]) {
@@ -78,7 +77,7 @@ func (tx Transaction) Verify(utxo_set map[UTXO]Output, is_coinbase bool) bool {
 	}
 	var output_value uint64 = 0
 	for _, output := range tx.outputs {
-		output_value+=output.value
+		output_value += output.value
 	}
 	// Note we only check here that the output value does not exceed input value.
 	// The actual block reward will be calculated and verified elsewhere

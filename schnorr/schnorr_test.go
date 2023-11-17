@@ -1,12 +1,11 @@
 package schnorr
 
 import (
-	"testing"
 	"fmt"
+	"testing"
 )
 
-
-func TestSigning(t * testing.T) {
+func TestSigning(t *testing.T) {
 	private_key, _ := NewPrivateKey()
 	private_key2, _ := NewPrivateKey()
 	public_key1, public_key2 := private_key.PublicKey, private_key2.PublicKey
