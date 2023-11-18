@@ -8,6 +8,7 @@ import (
 	"encoding/gob" // import "crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"math/big"
 )
 
 func main() {
@@ -26,11 +27,14 @@ func main() {
 	for i := range target {
 		target[i] = 0xff
 	}
-	target[0] = 0xff
-	target[1] = 0x00
-	target[2] = 0x00
-	target[3] = 0xf0
 
+	target_num := big.NewInt(0).SetBytes(target[:])
+	fmt.Println(target_num, target_num.BitLen())
+	new_target, err := blockchain.Retarget(0, 120, target)
+	new_target_num := big.NewInt(0).SetBytes(new_target[:])
+	fmt.Println(new_target_num, new_target_num.BitLen())
+
+	return
 	var block_chain blockchain.BlockChain = blockchain.NewBlockChain()
 
 	priv_key, _ := schnorr.NewPrivateKey()
@@ -41,10 +45,10 @@ func main() {
 	jason, _ := json.Marshal(block_candidate)
 	fmt.Printf("block json %s\n", jason)
 
-	block_candidate.Header = blockchain.MineBlock(block_candidate.Header, target)
+	block_candidate.Header = blockchain.MineBlock(block_candidate.Header)
 	block_chain.AddBlock(*block_candidate)
 	block_candidate, err = block_chain.NewBlockCandidate(pub_key)
-	block_candidate.Header = blockchain.MineBlock(block_candidate.Header, target)
+	block_candidate.Header = blockchain.MineBlock(block_candidate.Header)
 	block_chain.AddBlock(*block_candidate)
 
 	jason, _ = json.Marshal(block_chain)
@@ -52,6 +56,7 @@ func main() {
 	for key, val := range block_chain.UTXOSet {
 		fmt.Printf("UTXO: %v output: %v", key, val)
 	}
+
 
 
 	// block := blockchain.NewBlockHeader(0, target[:], 0)

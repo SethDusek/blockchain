@@ -1,8 +1,8 @@
 package blockchain
 
 import (
-	"blockchain/schnorr"
 	"blockchain/consensus"
+	"blockchain/schnorr"
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
@@ -48,7 +48,6 @@ func (tx Transaction) GenerateCommitment(block_height uint32) []byte {
 	return buf.Bytes()
 }
 
-//
 func (tx Transaction) TXID(block_height uint32) [32]byte {
 	hasher := sha256.New()
 	hasher.Write(tx.GenerateCommitment(block_height))
@@ -105,9 +104,9 @@ func (tx Transaction) Verify(utxo_set map[UTXO]Output, is_coinbase bool, block_h
 
 	if output_value > input_value {
 		if !is_coinbase {
-			fmt.Printf("Transaction creates more than it spends, input value %v, output value %v", input_value, output_value);
+			fmt.Printf("Transaction creates more than it spends, input value %v, output value %v", input_value, output_value)
 			return false
-		} else if output_value - input_value == consensus.BlockReward {
+		} else if output_value-input_value == consensus.BlockReward {
 			return true
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 )
+
 func create_fake_utxo(public_key schnorr.PublicKey, amount uint64) (UTXO, Output) {
 	txout := [32]byte{}
 	rand.Reader.Read(txout[:])
