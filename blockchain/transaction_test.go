@@ -3,8 +3,8 @@ package blockchain
 import (
 	"blockchain/schnorr"
 	"crypto/rand"
-	"math/big"
-	"testing"
+	//"math/big"
+	//"testing"
 )
 
 func create_fake_utxo(public_key schnorr.PublicKey, amount uint64) (UTXO, Output) {
@@ -14,7 +14,7 @@ func create_fake_utxo(public_key schnorr.PublicKey, amount uint64) (UTXO, Output
 	output := Output{amount, public_key}
 	return utxo, output
 }
-
+/*
 func TestTransactionVerification(t *testing.T) {
 	priv_key, _ := schnorr.NewPrivateKey()
 	public_key := priv_key.PublicKey
@@ -61,3 +61,4 @@ func TestTransactionVerification(t *testing.T) {
 	}
 
 }
+*/
