@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"time"
 )
 
 type BlockHeader struct {
@@ -19,21 +20,22 @@ type BlockHeader struct {
 	TXRootHash [32]byte
 	Nonce      uint64
 	Target     [32]byte
+	Timestamp uint64
 }
 
 func NewBlockHeader(version uint32, prev_hash []byte, TXTree merkle.MerkleTree, nonce uint64, target [32]byte) BlockHeader {
-	return BlockHeader{version, [32]byte(prev_hash), [32]byte(TXTree.RootHash()), nonce, target}
+	return BlockHeader{version, [32]byte(prev_hash), [32]byte(TXTree.RootHash()), nonce, target, uint64(time.Now().Unix())}
 }
 func (header BlockHeader) BlockHash() []byte {
 	hasher := sha256.New()
 	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.LittleEndian, header.Version)
-	hasher.Write(buf.Bytes())
-	buf.Reset()
 	hasher.Write(header.PrevHash[:])
 	hasher.Write(header.TXRootHash[:])
+	binary.Write(buf, binary.LittleEndian, header.Version)
 	binary.Write(buf, binary.LittleEndian, header.Nonce)
+	binary.Write(buf, binary.LittleEndian, header.Timestamp)
 	hasher.Write(buf.Bytes())
+	hasher.Write(header.Target[:])
 	return hasher.Sum(nil)
 }
 
