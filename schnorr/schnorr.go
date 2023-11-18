@@ -4,11 +4,15 @@
 package schnorr
 
 // We only use ecdsa for generating keypairs
-import "crypto/ecdsa"
-import "crypto/elliptic"
-import "math/big"
-import "crypto/rand"
-import "crypto/sha256"
+import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
+	"math/big"
+)
 
 // A Public Key, assumes secp256r1
 type PublicKey struct {
@@ -81,12 +85,34 @@ func (public_key PublicKey) Verify(message []byte, signature Signature) bool {
 
 	eDx, eDy := curve.ScalarMult(public_key.X, public_key.Y, hasher.Sum(nil))
 
-
 	if !curve.IsOnCurve(signature.Rx, signature.Ry) || !curve.IsOnCurve(eDx, eDy) {
 		return false
 	}
 	x, y := curve.Add(signature.Rx, signature.Ry, eDx, eDy)
-
-
 	return x.Cmp(Sx) == 0 && y.Cmp(Sy) == 0
+}
+
+func (public_key PublicKey) Equal(other PublicKey) bool {
+	return public_key.X.Cmp(other.X) == 0 && public_key.Y.Cmp(other.Y) == 0
+}
+
+func (public_key *PublicKey) ToAddress() string {
+	bytes := make([]byte, 64)
+	copy(bytes[:32], public_key.X.Bytes())
+	copy(bytes[32:], public_key.Y.Bytes())
+	return base64.RawStdEncoding.EncodeToString(bytes)
+}
+
+func PublicKeyFromAddress(address string) (*PublicKey, error) {
+	if base64.RawStdEncoding.DecodedLen(len(address)) != 64 {
+		return nil, errors.New("Expected 64-byte decoded address")
+	}
+	bytes, err := base64.RawStdEncoding.DecodeString(address)
+	if err != nil {
+		return nil, err
+	}
+	X := big.NewInt(0).SetBytes(bytes[0:32])
+	Y := big.NewInt(0).SetBytes(bytes[32:])
+	public_key := PublicKey{X, Y}
+	return &public_key, nil
 }

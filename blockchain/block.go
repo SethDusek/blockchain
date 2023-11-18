@@ -10,7 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"reflect"
+	"sort"
+	"text/tabwriter"
 	"time"
 )
 
@@ -63,10 +66,16 @@ type BlockChain struct {
 	Blocks  []Block
 	UTXOSet map[UTXO]Output
 	mempool []Transaction
+	// A Wallet for miner and also user of node. If mining is enabled then rewards will be sent to this address
+	Wallet *schnorr.PrivateKey
 }
 
 func NewBlockChain() BlockChain {
-	return BlockChain{make([]Block, 0), make(map[UTXO]Output), make([]Transaction, 0)}
+	private_key, err := schnorr.NewPrivateKey()
+	if err != nil {
+		panic(err)
+	}
+	return BlockChain{make([]Block, 0), make(map[UTXO]Output), make([]Transaction, 0), private_key}
 }
 
 func MakeTXMerkleTree(transactions []Transaction, block_height uint32) (*merkle.MerkleTree, error) {
@@ -83,10 +92,13 @@ func MakeTXMerkleTree(transactions []Transaction, block_height uint32) (*merkle.
 	return &merkle_tree, nil
 }
 
-func (blockchain *BlockChain) NewBlockCandidate(miner_key schnorr.PublicKey) (*Block, error) {
+func (blockchain *BlockChain) NewBlockCandidate() (*Block, error) {
+	if blockchain.Wallet == nil {
+		return nil, errors.New("No wallet found")
+	}
 	utxo_set := blockchain.UTXOSet
 	transactions := make([]Transaction, 0)
-	transactions = append(transactions, NewCoinbaseTransaction(miner_key))
+	transactions = append(transactions, NewCoinbaseTransaction(blockchain.Wallet.PublicKey))
 
 	for _, tx := range blockchain.mempool {
 		if !tx.Verify(utxo_set, false, uint32(len(blockchain.Blocks))) {
@@ -232,10 +244,11 @@ func VerifyBlock(blocks []Block, block_idx uint32, utxo_set *map[UTXO]Output) bo
 	return true
 }
 
-// Verifies blocks from genesis to tip of chain. If it errors early, it will return the index of the last valid block (or -1 if none are valid) and also delete all the blocks from blockchain
+// Verifies blocks from genesis to tip of chain. If it errors early, it will return the index of the last valid block (or -1 if none are valid) and also delete all the blocks from blockchain that are invalid
 func (blockchain *BlockChain) VerifyBlocks() (int32, error) {
 	new_blockchain := NewBlockChain()
 	copy(new_blockchain.mempool, blockchain.mempool)
+	new_blockchain.Wallet = blockchain.Wallet
 
 	for i, block := range blockchain.Blocks {
 		err := new_blockchain.AddBlock(block)
@@ -297,4 +310,65 @@ func (block_chain *BlockChain) AttemptOrphan(blocks []Block) bool {
 	*block_chain = cloned_chain
 
 	return true
+}
+
+// Find all UTXOs by public key
+func (block_chain *BlockChain) FindUTXOsByPublicKey(public_key schnorr.PublicKey) []struct{UTXO; Output} {
+	utxos := make([]struct{UTXO; Output}, 0)
+	for utxo, output := range block_chain.UTXOSet {
+		if output.Challenge.Equal(public_key) {
+			utxos = append(utxos, struct{UTXO; Output}{utxo, output})
+		}
+	}
+	return utxos
+}
+
+// Find all UTXOs by Address, used for paying other addresses
+func (block_chain *BlockChain) FindUTXOsByAddress(address string) ([]struct{UTXO; Output}, error) {
+	public_key, err := schnorr.PublicKeyFromAddress(address)
+	if err != nil {
+		return make([]struct{UTXO; Output}, 0), err
+	}
+	return block_chain.FindUTXOsByPublicKey(*public_key), nil
+}
+
+//Attempt to pay to an address *amount*. Will select wallet UTXOs and also handle change addresses
+// This function sorts UTXOs by value and selects the largest UTXOs until amount is reached
+func (block_chain *BlockChain) PayToPublicKey(public_key schnorr.PublicKey, amount uint64) (*Transaction, error) {
+	utxos := block_chain.FindUTXOsByPublicKey(block_chain.Wallet.PublicKey)
+	sort.Slice(utxos, func(a, b int) bool {
+		return utxos[a].Output.Value > utxos[b].Output.Value
+	})
+	value := uint64(0)
+	for i := 0; i <= len(utxos); i++ {
+		value+=utxos[i].Output.Value
+		if value >= amount {
+			break;
+		}
+	}
+	if value < amount {
+		return nil, errors.New("Not enough balance")
+	}
+	change_amount := value - amount
+	tx := Transaction{make([]UTXO, len(utxos)), make([]schnorr.Signature, len(utxos)), make([]Output, 0)}
+	tx.Outputs = append(tx.Outputs, Output{amount, public_key})
+	if change_amount != 0 {
+		tx.Outputs = append(tx.Outputs, Output{change_amount, block_chain.Wallet.PublicKey})
+	}
+	// Add inputs to transaction
+	for i, utxo := range utxos { tx.Inputs[i] = utxo.UTXO }
+	// Sign transaction: TODO, maybe transaction should have a .Sign(public_key) with public key that generates signatures for all inputs belonging to public key?
+	for i := range utxos {
+		tx.Proofs[i] = block_chain.Wallet.Sign(tx.GenerateCommitment(uint32(len(block_chain.Blocks))))
+	}
+	return &tx, nil
+}
+
+func (block_chain *BlockChain) PrettyPrint() {
+	writer := tabwriter.NewWriter(os.Stdout, 1, 4, 4, ' ', 0)
+	fmt.Fprintf(writer, "Block Hash\tTX Root Hash\t#Transactions\n")
+	for _, block := range block_chain.Blocks {
+		fmt.Fprintf(writer, "%x\t%x\t%v\n\t \n\t↓\n\n", block.Header.BlockHash(), block.Header.TXRootHash, len(block.Transactions))
+	}
+	writer.Flush()
 }

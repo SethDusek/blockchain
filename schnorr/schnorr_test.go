@@ -1,7 +1,6 @@
 package schnorr
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -38,6 +37,19 @@ func TestSigning(t *testing.T) {
 	}
 }
 
+func TestAddressRoundTrip(t * testing.T) {
+	private_key, _ := NewPrivateKey()
+	public_key := private_key.PublicKey
+
+	public_key_decoded, err := PublicKeyFromAddress(public_key.ToAddress())
+	if err != nil {
+		t.Error(err)
+	}
+	if public_key_decoded.X.Cmp(public_key.X) != 0 || public_key_decoded.Y.Cmp(public_key.Y) != 0 {
+		t.Errorf("Error decoding, actual (X, Y): (%x, %x), found (%x, %x)\n", public_key.X, public_key.Y, public_key_decoded.X, public_key_decoded.Y)
+	}
+
+}
 /*
 func BenchmarkSchnorr(b *testing.B) {
 	private_key, _ := NewPrivateKey()
