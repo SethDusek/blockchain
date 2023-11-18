@@ -35,6 +35,8 @@ func Test_Mining(t *testing.T) {
 	other_priv_key, _ := schnorr.NewPrivateKey()
 	other_public_key := other_priv_key.PublicKey
 	mine_n_blocks(t, 5, &new_chain, other_public_key)
+	tree, _ := MakeTXMerkleTree(new_chain.Blocks[0].Transactions, 0)
+	tree.PrettyPrint()
 
 	if block_chain.AttemptOrphan(new_chain.Blocks) {
 		panic("Orphaning longer chain should fail but succeeded")
