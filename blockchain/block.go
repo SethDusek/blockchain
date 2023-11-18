@@ -249,7 +249,7 @@ func (blockchain *BlockChain) VerifyBlocks() (int32, error) {
 	return int32(len(blockchain.Blocks)), nil
 }
 
-// Return index of block
+// Returns index of block
 func (blockchain *BlockChain) SearchBlockByHash(hash [32]byte) *int {
 	for i, block := range blockchain.Blocks {
 		if [32]byte(block.Header.BlockHash()) == hash {

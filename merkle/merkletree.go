@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/gob"
+	"fmt"
 	"math"
 )
 
@@ -147,4 +148,38 @@ func (tree MerkleTree) ProveInclusion(data []byte) *Proof {
 		return nil
 	}
 	return tree.prove_inclusion(index)
+}
+
+func (tree MerkleTree) PrettyPrint() {
+	fmt.Println("Merkle Tree: ")
+	queue := make(chan struct{uint; int}, len(tree.Nodes))
+	if len(tree.Nodes) != 0 {
+		queue <- struct{uint; int}{0, 0}
+	} else {
+		return
+	}
+	prev_level := uint(0)
+	for {
+		if len(queue) == 0 {
+			fmt.Println("")
+			break
+		}
+		pair := <-queue
+		if pair.uint != prev_level {
+			fmt.Println("")
+			prev_level = pair.uint
+		}
+		if tree.Nodes[pair.int].Hash != nil {
+			fmt.Printf("%x ", *tree.Nodes[pair.int].Hash)
+		} else {
+			fmt.Printf("EMPTY ")
+		}
+		left, right := get_left(uint(pair.int)), get_right(uint(pair.int))
+		if left < uint(len(tree.Nodes)) {
+			queue <- struct{uint; int}{pair.uint+1, int(left)}
+		}
+		if right < uint(len(tree.Nodes)) {
+			queue <- struct{uint; int}{pair.uint+1, int(right)}
+		}
+	}
 }
