@@ -96,7 +96,10 @@ func (blockchain *BlockChain) NewBlockCandidate() (*Block, error) {
 	if blockchain.Wallet == nil {
 		return nil, errors.New("No wallet found")
 	}
-	utxo_set := blockchain.UTXOSet
+	utxo_set := make(map[UTXO]Output)
+	for utxo, output := range blockchain.UTXOSet {
+		utxo_set[utxo] = output
+	}
 	transactions := make([]Transaction, 0)
 	transactions = append(transactions, NewCoinbaseTransaction(blockchain.Wallet.PublicKey))
 

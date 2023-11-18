@@ -51,9 +51,18 @@ func Test_Mining(t *testing.T) {
 	t.Logf("Transaction: %+v\n", tx)
 	if len(tx.Inputs) != 11 {
 		t.Errorf("Expected 11 inputs, found %v\n", len(tx.Inputs))
+		return
 	}
-	if len(tx.Outputs) != 11 {
-		t.Errorf("Expected 11 inputs, found %v\n", len(tx.Outputs))
+	if len(tx.Outputs) != 2 {
+		t.Errorf("Expected 11 outputs, found %v\n", len(tx.Outputs))
+		return
+	}
+
+	block_chain.mempool = append(block_chain.mempool, *tx)
+	// Mine a new block, which *hopefully* includes our new transaction
+	mine_n_blocks(t, 1, &block_chain)
+	if len(block_chain.Blocks[len(block_chain.Blocks)-1].Transactions) != 2 {
+		panic("Expected 2 transactions, found 1")
 	}
 
 	new_chain := NewBlockChain()
@@ -67,8 +76,8 @@ func Test_Mining(t *testing.T) {
 	if !new_chain.AttemptOrphan(block_chain.Blocks) {
 		panic("Failed to build longest chain")
 	}
-	if count, err := new_chain.VerifyBlocks(); count != 11 || err != nil {
-		t.Errorf("Error: mined valid blocks %v when should be 10 or error %v\n", count, err)
+	if count, err := new_chain.VerifyBlocks(); count != 12 || err != nil {
+		t.Errorf("Error: mined valid blocks %v when should be 12 or error %v\n", count, err)
 		return
 	}
 
