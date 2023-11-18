@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"blockchain/schnorr"
+	"blockchain/consensus"
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
@@ -10,80 +11,105 @@ import (
 
 // An unspent transaction output.
 type UTXO struct {
-	txout    [32]byte
-	outpoint uint32
+	Txout    [32]byte
+	Outpoint uint32
 }
 
 // An output has a value and a challenge (a public key that must pass verification)
 type Output struct {
-	value     uint64
-	challenge schnorr.PublicKey
+	Value     uint64
+	Challenge schnorr.PublicKey
 }
 
 type Transaction struct {
-	inputs  []UTXO
-	proofs  []schnorr.Signature
-	outputs []Output
+	Inputs  []UTXO
+	Proofs  []schnorr.Signature
+	Outputs []Output
 }
 
 // Generates the bytes that the signer must commit to
-func (tx Transaction) GenerateComittment() []byte {
+// The Commitment additionally commits to the block height if it's the coinbase transaction
+// This is to prevent two coinbase transactions by the same miner having the same TXIDs, which would lead to some of the UTXOs being unspendable
+func (tx Transaction) GenerateCommitment(block_height uint32) []byte {
 	buf := new(bytes.Buffer)
 
-	for _, input := range tx.inputs {
-		buf.Write(input.txout[:])
-		binary.Write(buf, binary.BigEndian, input.outpoint)
+	for _, input := range tx.Inputs {
+		buf.Write(input.Txout[:])
+		binary.Write(buf, binary.BigEndian, input.Outpoint)
 	}
-	for _, output := range tx.outputs {
-		binary.Write(buf, binary.BigEndian, output.value)
-		binary.Write(buf, binary.BigEndian, output.challenge)
+	// Coinbase transactions commit to block height as well
+	if len(tx.Inputs) == 0 {
+		binary.Write(buf, binary.BigEndian, block_height)
+	}
+	for _, output := range tx.Outputs {
+		binary.Write(buf, binary.BigEndian, output.Value)
+		binary.Write(buf, binary.BigEndian, output.Challenge)
 	}
 	return buf.Bytes()
 }
 
-func (tx Transaction) TXID() [32]byte {
+//
+func (tx Transaction) TXID(block_height uint32) [32]byte {
 	hasher := sha256.New()
-	hasher.Write(tx.GenerateComittment())
+	hasher.Write(tx.GenerateCommitment(block_height))
 	var txid [32]byte
 	copy(txid[:], hasher.Sum(nil))
 	return txid
 }
 
-func (tx Transaction) Verify(utxo_set map[UTXO]Output, is_coinbase bool) bool {
-	committment := tx.GenerateComittment()
+// Create a new coinbase transaction for the miner's public key
+func NewCoinbaseTransaction(public_key schnorr.PublicKey) Transaction {
+	output := Output{consensus.BlockReward, public_key}
+	return Transaction{[]UTXO{}, []schnorr.Signature{}, []Output{output}}
+}
+
+func (tx Transaction) Verify(utxo_set map[UTXO]Output, is_coinbase bool, block_height uint32) bool {
+	// Keep track of which inputs we've spent so double-spending is not allowed
+	spent_inputs := map[UTXO]bool{}
+	commitment := tx.GenerateCommitment(block_height)
 	// A coinbase transaction must have no inputs
-	if is_coinbase && len(tx.inputs) != 0 {
+	if is_coinbase && len(tx.Inputs) != 0 {
+		return false
+	} else if !is_coinbase && len(tx.Inputs) == 0 { // Prevent non-coinbase transactions from having 0 inputs. This is an anti-spam mechanism
 		return false
 	}
 
-	if len(tx.proofs) < len(tx.inputs) {
-		fmt.Printf("Error: not enough proofs for inputs, %v inputs, %v proofs", len(tx.inputs), len(tx.proofs))
+	if len(tx.Proofs) < len(tx.Inputs) {
+		fmt.Printf("Error: not enough proofs for inputs, %v inputs, %v proofs\n", len(tx.Inputs), len(tx.Proofs))
 		return false
 	}
 	var input_value uint64 = 0
-	for i, input := range tx.inputs {
+	for i, input := range tx.Inputs {
 		output, ok := utxo_set[input]
+		_, already_spent := spent_inputs[input]
 		if !ok {
-			fmt.Printf("Verification of tx %x failed, no input %x\n", tx.TXID(), output)
+			fmt.Printf("Verification of tx %x failed, no input %x\n", tx.TXID(block_height), output)
 			return false
 		}
-		input_value += output.value
+		if already_spent {
+			fmt.Printf("Verification of tx %x failed, double-spend detected\n", tx.TXID(block_height))
+		}
+		spent_inputs[input] = true
+		input_value += output.Value
 
-		public_key := output.challenge
-		if !public_key.Verify(committment, tx.proofs[i]) {
-			fmt.Printf("Signature verification of tx %x input[%v] failed\n", tx.TXID(), i)
+		public_key := output.Challenge
+		if !public_key.Verify(commitment, tx.Proofs[i]) {
+			fmt.Printf("Signature verification of tx %x input[%v] failed\n", tx.TXID(block_height), i)
 			return false
 		}
 	}
 	var output_value uint64 = 0
-	for _, output := range tx.outputs {
-		output_value += output.value
-	}
-	// Note we only check here that the output value does not exceed input value.
-	// The actual block reward will be calculated and verified elsewhere
-	if output_value > input_value && !is_coinbase {
-		return false
+	for _, output := range tx.Outputs {
+		output_value += output.Value
 	}
 
+	if output_value > input_value {
+		if !is_coinbase {
+			fmt.Printf("Transaction creates more than it spends, input value %v, output value %v", input_value, output_value);
+			return false
+		} else if output_value - input_value == consensus.BlockReward {
+			return true
+		}
+	}
 	return true
 }

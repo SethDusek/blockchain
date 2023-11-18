@@ -81,7 +81,12 @@ func (public_key PublicKey) Verify(message []byte, signature Signature) bool {
 
 	eDx, eDy := curve.ScalarMult(public_key.X, public_key.Y, hasher.Sum(nil))
 
+
+	if !curve.IsOnCurve(signature.Rx, signature.Ry) || !curve.IsOnCurve(eDx, eDy) {
+		return false
+	}
 	x, y := curve.Add(signature.Rx, signature.Ry, eDx, eDy)
+
 
 	return x.Cmp(Sx) == 0 && y.Cmp(Sy) == 0
 }

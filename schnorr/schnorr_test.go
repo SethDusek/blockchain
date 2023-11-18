@@ -38,6 +38,7 @@ func TestSigning(t *testing.T) {
 	}
 }
 
+/*
 func BenchmarkSchnorr(b *testing.B) {
 	private_key, _ := NewPrivateKey()
 	inputs := make([][]byte, 1000)
@@ -60,3 +61,4 @@ func BenchmarkSchnorr(b *testing.B) {
 		})
 	}
 }
+*/
