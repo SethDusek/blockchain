@@ -31,7 +31,7 @@ func Test_Mining(t *testing.T) {
 
 	if utxos := block_chain.FindUTXOsByPublicKey(block_chain.Wallet.PublicKey); len(utxos) != 11 {
 		t.Errorf("Miner should have 11 UTXOs, found %v", len(utxos))
-		t.Logf("Miner address %v\n", block_chain.Wallet.PublicKey.ToAddress());
+		t.Logf("Miner address %v\n", block_chain.Wallet.PublicKey.ToAddress())
 		for _, output := range block_chain.UTXOSet {
 			t.Logf("%v %v\n", output.Challenge.ToAddress(), output.Value)
 		}
@@ -54,15 +54,23 @@ func Test_Mining(t *testing.T) {
 		return
 	}
 	if len(tx.Outputs) != 2 {
-		t.Errorf("Expected 11 outputs, found %v\n", len(tx.Outputs))
+		t.Errorf("Expected 2 outputs, found %v\n", len(tx.Outputs))
 		return
 	}
 
+	block_chain.mempool = append(block_chain.mempool, *tx)
+	// Also attempt a double-spend while we're at it
 	block_chain.mempool = append(block_chain.mempool, *tx)
 	// Mine a new block, which *hopefully* includes our new transaction
 	mine_n_blocks(t, 1, &block_chain)
 	if len(block_chain.Blocks[len(block_chain.Blocks)-1].Transactions) != 2 {
 		panic("Expected 2 transactions, found 1")
+	}
+	// Attempt another double-spend for fun
+	block_chain.mempool = append(block_chain.mempool, *tx)
+	mine_n_blocks(t, 1, &block_chain)
+	if len(block_chain.Blocks[len(block_chain.Blocks)-1].Transactions) != 1 {
+		panic("Expected 1 transactions, found 2")
 	}
 
 	new_chain := NewBlockChain()
@@ -76,8 +84,8 @@ func Test_Mining(t *testing.T) {
 	if !new_chain.AttemptOrphan(block_chain.Blocks) {
 		panic("Failed to build longest chain")
 	}
-	if count, err := new_chain.VerifyBlocks(); count != 12 || err != nil {
-		t.Errorf("Error: mined valid blocks %v when should be 12 or error %v\n", count, err)
+	if count, err := new_chain.VerifyBlocks(); count != 13 || err != nil {
+		t.Errorf("Error: mined valid blocks %v when should be 13 or error %v\n", count, err)
 		return
 	}
 

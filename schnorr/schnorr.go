@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"log"
 	"math/big"
 )
 
@@ -22,13 +23,15 @@ type PublicKey struct {
 // A Private Key, assumes secp256r1
 type PrivateKey struct {
 	PublicKey PublicKey
-	d         *big.Int
+	// in elliptic curve terminology this is actually d, not d*g = D but since go is stupid this has to be uppercase
+	D         *big.Int
 }
 
 type Signature struct {
 	Rx *big.Int
 	Ry *big.Int
-	s  *big.Int
+	// Refer to privatekey comments
+	S  *big.Int
 }
 
 func NewPrivateKey() (*PrivateKey, error) {
@@ -62,7 +65,7 @@ func (private_key PrivateKey) Sign(message []byte) Signature {
 	e = e.SetBytes(hasher.Sum(nil))
 
 	ed := big.NewInt(0)
-	ed = ed.Mul(e, private_key.d)
+	ed = ed.Mul(e, private_key.D)
 	ed = ed.Mod(ed, elliptic.P256().Params().N)
 	s := big.NewInt(0)
 	s = s.Add(r.D, ed)
@@ -73,8 +76,16 @@ func (private_key PrivateKey) Sign(message []byte) Signature {
 // To verify we take s = r + ed
 // and perform one scalar base multiplication sG = G(r + ed) = sG = R + eD
 func (public_key PublicKey) Verify(message []byte, signature Signature) bool {
+	if public_key.X == nil || public_key.Y == nil {
+		log.Printf("Public key is nil\n");
+		return false
+	}
+	if signature.Rx == nil || signature.Ry == nil || signature.S == nil {
+		log.Printf("signature has nil values\n");
+		return false
+	}
 	curve := elliptic.P256()
-	Sx, Sy := curve.ScalarBaseMult(signature.s.Bytes())
+	Sx, Sy := curve.ScalarBaseMult(signature.S.Bytes())
 
 	hasher := sha256.New()
 	hasher.Write(signature.Rx.Bytes())
