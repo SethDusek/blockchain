@@ -117,8 +117,10 @@ func (tx Transaction) Verify(utxo_set map[UTXO]Output, is_coinbase bool, block_h
 		if !is_coinbase {
 			fmt.Printf("Transaction creates more than it spends, input value %v, output value %v", input_value, output_value)
 			return false
-		} else if output_value-input_value == consensus.BlockReward {
+		} else if output_value-input_value <= consensus.BlockReward {
 			return true
+		} else {
+			return false
 		}
 	}
 	return true
