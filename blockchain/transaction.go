@@ -62,6 +62,17 @@ func NewCoinbaseTransaction(public_key schnorr.PublicKey) Transaction {
 	return Transaction{[]UTXO{}, []schnorr.Signature{}, []Output{output}}
 }
 
+func (tx *Transaction) Sign(utxo_set *map[UTXO]Output, block_height uint32, private_key schnorr.PrivateKey) {
+	committment := tx.GenerateCommitment(block_height)
+	for i, input := range tx.Inputs {
+		outpoint, ok := (*utxo_set)[input]
+		if !ok || !outpoint.Challenge.Equal(private_key.PublicKey) {
+			continue
+		}
+		tx.Proofs[i] = private_key.Sign(committment)
+	}
+}
+
 func (tx Transaction) Verify(utxo_set map[UTXO]Output, is_coinbase bool, block_height uint32) bool {
 	// Keep track of which inputs we've spent so double-spending is not allowed
 	spent_inputs := map[UTXO]bool{}
