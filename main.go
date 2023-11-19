@@ -119,6 +119,32 @@ func main() {
 			}
 			fmt.Printf("Successful tx %+v, added to mempool", tx)
 
+		case "changetransaction":
+			fmt.Println("Enter block #: ")
+			scanner.Scan()
+			block_num, err := strconv.Atoi(scanner.Text())
+			if err != nil {
+				fmt.Println(err)
+			}
+			if block_num >= len(block_chain.Blocks) {
+				fmt.Println("Invalid block")
+			}
+			fmt.Println("Enter block #: ")
+			scanner.Scan()
+			txnum, err := strconv.Atoi(scanner.Text())
+			if err != nil {
+				fmt.Println(err)
+			}
+			if txnum >= len(block_chain.Blocks[block_num].Transactions) {
+				fmt.Println("Invalid tx")
+			}
+			fmt.Println("Decrementing output value by 1")
+			block_chain.Blocks[block_num].Transactions[txnum].Outputs[0].Value-=1
+			fmt.Println("Reverifying block-chain: ")
+			prev_block_length := len(block_chain.Blocks)
+			blocks, err := block_chain.VerifyBlocks()
+			fmt.Printf("Validating blocks: #%v discarded, %v\n", int32(prev_block_length) - blocks, err)
+
 		case "exit":
 			return
 		}
