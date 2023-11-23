@@ -2,9 +2,11 @@ package main
 
 import (
 	"blockchain/blockchain"
+	"blockchain/p2p"
 	"blockchain/schnorr"
 	"bufio"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -57,14 +59,48 @@ func miner_thread(candidate_block blockchain.Block, done chan<- blockchain.Block
 //		for channel := range chans {
 //		}
 //	}
+
+func start_http_server(block_chain *blockchain.BlockChain, port int) *p2p.Node {
+	var listener *net.Listener
+	for i := 0; i <= 10; i++ {
+		server, err := net.Listen("tcp", ":" + strconv.Itoa(port))
+		if err == nil {
+			listener = &server
+			break
+		} else {
+			log.Printf("Error listening on port %v, err: %v \n", port, err)
+		}
+		port++
+	}
+	if listener == nil {
+		log.Fatal("Tried 10 ports, could not listen on any!")
+	}
+	return p2p.NewNode(*listener, block_chain)
+}
+
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	block_chain := load_blockchain()
 	defer save_blockchain(&block_chain)
+
+	// Start P2P network
+	node := start_http_server(&block_chain, 8284)
 	fmt.Println("here")
 	for scanner.Scan() {
 		command := strings.Split(scanner.Text(), " ")
 		switch command[0] {
+		case "connect":
+			if len(command) != 2 {
+				fmt.Println("Please provide address:port")
+			} else {
+				err := node.Connect(command[1])
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				node.PrintConnectedPeers()
+			}
+
 		case "printchain":
 			block_chain.PrettyPrint()
 		case "mineblock":
@@ -150,5 +186,4 @@ func main() {
 		}
 	}
 	block_chain.PrettyPrint()
-
 }
