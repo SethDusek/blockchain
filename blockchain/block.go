@@ -200,9 +200,9 @@ func Retarget(prev_timestamp uint64, cur_timestamp uint64, prev_target [32]byte)
 	return retargeted, nil
 }
 
-func VerifyBlock(blocks []Block, block_idx uint32, utxo_set *map[UTXO]Output) bool {
+// Verifies the block header only, including verifying prev hash points to an actual block and difficulty is correct
+func VerifyBlockHeader(blocks []Block, block_idx uint32) bool {
 	block := blocks[block_idx]
-
 	hash := big.NewInt(0).SetBytes(block.Header.BlockHash())
 	target := big.NewInt(0).SetBytes(block.Header.Target[:])
 	if hash.Cmp(target) != -1 {
@@ -221,20 +221,28 @@ func VerifyBlock(blocks []Block, block_idx uint32, utxo_set *map[UTXO]Output) bo
 			return false
 		}
 	}
-	merkle_tree, err := MakeTXMerkleTree(block.Transactions, block_idx)
-	if err != nil {
-		return false
-	}
-	if !reflect.DeepEqual(merkle_tree.RootHash(), block.Header.TXRootHash[:]) {
-		fmt.Printf("Merkle Tree equality failed, block header root hash: %x, actual root hash: %x\n", block.Header.TXRootHash, merkle_tree.RootHash())
-		return false
-	}
 	// The genesis block must point to [0; 32]
 	if block_idx != 0 && block.Header.PrevHash != [32]byte(blocks[block_idx-1].Header.BlockHash()) {
 		fmt.Printf("Chain is not consistent! block %v points to %x but block %v is %x\n", block_idx, blocks[block_idx].Header.PrevHash, block_idx-1, blocks[block_idx-1].Header.BlockHash())
 		return false
 	} else if block_idx == 0 && block.Header.PrevHash != [32]byte{} {
 		fmt.Printf("Genesis block's prev_hash must be 0")
+		return false
+	}
+	return true
+}
+
+func VerifyBlock(blocks []Block, block_idx uint32, utxo_set *map[UTXO]Output) bool {
+	if !VerifyBlockHeader(blocks, block_idx) {
+		return false
+	}
+	block := blocks[block_idx]
+	merkle_tree, err := MakeTXMerkleTree(block.Transactions, block_idx)
+	if err != nil {
+		return false
+	}
+	if !reflect.DeepEqual(merkle_tree.RootHash(), block.Header.TXRootHash[:]) {
+		fmt.Printf("Merkle Tree equality failed, block header root hash: %x, actual root hash: %x\n", block.Header.TXRootHash, merkle_tree.RootHash())
 		return false
 	}
 	for i, tx := range blocks[block_idx].Transactions {
@@ -286,6 +294,7 @@ func (block_chain *BlockChain) AttemptOrphan(blocks []Block) bool {
 	}
 	cloned_chain := *block_chain
 	start_idx := 0
+	// The new chain starts at genesis
 	if blocks[0].Header.PrevHash == [32]byte{} {
 		start_idx = 0
 	} else {
