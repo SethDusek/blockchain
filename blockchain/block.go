@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"os"
 	"reflect"
@@ -44,15 +45,34 @@ func (header BlockHeader) BlockHash() []byte {
 }
 
 // Mine a block, by finding nonce such that Hash(Block) < Target
-func MineBlock(header BlockHeader) BlockHeader {
+func MineBlock(header BlockHeader, rcv_channel <-chan BlockHeader, send_channel chan<- BlockHeader) BlockHeader {
 	target_num := big.NewInt(0).SetBytes(header.Target[:])
+	count := 0
 	for {
+		if count%1000 == 0 && rcv_channel != nil {
+			select {
+			case new_header := <-rcv_channel:
+				log.Println("Miner thread received new header")
+				header = new_header
+				target_num = big.NewInt(0).SetBytes(header.Target[:])
+				count = 0
+			default:
+			}
+		}
 		cur_num := *big.NewInt(0)
 		cur_num = *cur_num.SetBytes(header.BlockHash())
 		if cur_num.Cmp(target_num) == -1 {
-			return header
+			if send_channel == nil {
+				return header
+			} else {
+				log.Println("Sending new block to other thread")
+				send_channel <- header
+				count = 0
+			}
+
 		}
 		header.Nonce++
+		count++
 	}
 }
 
@@ -128,7 +148,7 @@ func (blockchain *BlockChain) NewBlockCandidate() (*Block, error) {
 		target[i] = 0xff
 	}
 	target[0] = 0x00
-	target[1] = 0x00
+	target[1] = 0x0f
 	if len(blockchain.Blocks) >= 2 {
 		expected_target, err := Retarget(blockchain.Blocks[len(blockchain.Blocks)-2].Header.Timestamp,
 			blockchain.Blocks[len(blockchain.Blocks)-1].Header.Timestamp,
@@ -163,6 +183,15 @@ func (blockchain *BlockChain) AddBlock(block Block) error {
 			blockchain.UTXOSet[utxo] = output
 		}
 	}
+	new_mempool := make([]Transaction, 0)
+	for _, tx := range blockchain.mempool {
+		if !tx.Verify(blockchain.UTXOSet, false, uint32(len(blockchain.Blocks))) {
+			log.Printf("Pruning transaction %x\n", tx.TXID(uint32(len(blockchain.Blocks))))
+			continue
+		}
+		new_mempool = append(new_mempool, tx)
+	}
+	blockchain.mempool = new_mempool
 	return nil
 }
 
@@ -303,7 +332,7 @@ func (block_chain *BlockChain) AttemptOrphan(blocks []Block) bool {
 			fmt.Printf("Could not find starting of new chain prevhash %x\n", blocks[0].Header.PrevHash)
 			return false
 		}
-		start_idx = *idx
+		start_idx = *idx + 1
 	}
 	if start_idx+len(blocks) <= len(block_chain.Blocks) {
 		fmt.Printf("New chain is not longer, new chain length %v, our chain length %v\n", start_idx+len(blocks), len(block_chain.Blocks))
@@ -399,6 +428,13 @@ func (block_chain *BlockChain) AddTXToMempool(tx Transaction) error {
 	if !tx.Verify(block_chain.UTXOSet, false, uint32(len(block_chain.Blocks))) {
 		return errors.New("Error validating transaction")
 	}
+	for _, mempool_tx := range block_chain.mempool {
+		block_height := uint32(len(block_chain.Blocks))
+		if mempool_tx.TXID(block_height) == tx.TXID(block_height) {
+			return errors.New("TX already in mempool")
+		}
+	}
+
 	block_chain.mempool = append(block_chain.mempool, tx)
 	return nil
 }

@@ -107,3 +107,21 @@ func (rpc *RPCResponder) Connect(port uint16, reply *string) error {
 	*reply = ""
 	return nil
 }
+
+func (rpc *RPCResponder) NewBlock(block blockchain.Block, reply *string) error {
+	log.Println("RPCResponder.NewBlock called")
+	log.Printf("%+x", block)
+	if err := rpc.Node.NewBlock(block, rpc.Conn.RemoteAddr().String()); err != nil {
+		log.Println("RPCResponder.NewBlock error", err)
+	}
+	return nil
+}
+
+func (rpc *RPCResponder) NewTransaction(tx blockchain.Transaction, reply *string) error {
+	log.Println("RPCResponder.NewTransaction called")
+	log.Printf("%+x\n", tx)
+	if err := rpc.Node.NewTransaction(tx, rpc.Conn.RemoteAddr().String()); err != nil {
+		log.Println("RPCResponder.NewTransaction error", err)
+	}
+	return nil
+}
