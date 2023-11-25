@@ -210,7 +210,7 @@ func VerifyBlockHeader(blocks []Block, block_idx uint32) bool {
 		return false
 	}
 
-	if len(blocks) > 2 {
+	if block_idx >= 2 {
 		expected_target, err := Retarget(blocks[block_idx-2].Header.Timestamp, blocks[block_idx-1].Header.Timestamp, blocks[block_idx-1].Header.Target)
 		if err != nil {
 			fmt.Printf("Error calculating difficulty %v\n", err)

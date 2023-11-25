@@ -63,7 +63,7 @@ func miner_thread(candidate_block blockchain.Block, done chan<- blockchain.Block
 func start_http_server(block_chain *blockchain.BlockChain, port int) *p2p.Node {
 	var listener *net.Listener
 	for i := 0; i <= 10; i++ {
-		server, err := net.Listen("tcp", ":" + strconv.Itoa(port))
+		server, err := net.Listen("tcp", ":"+strconv.Itoa(port))
 		if err == nil {
 			listener = &server
 			break
@@ -99,6 +99,7 @@ func main() {
 					continue
 				}
 				node.PrintConnectedPeers()
+				go node.Sync()
 			}
 
 		case "printchain":
@@ -175,12 +176,14 @@ func main() {
 				fmt.Println("Invalid tx")
 			}
 			fmt.Println("Decrementing output value by 1")
-			block_chain.Blocks[block_num].Transactions[txnum].Outputs[0].Value-=1
+			block_chain.Blocks[block_num].Transactions[txnum].Outputs[0].Value -= 1
 			fmt.Println("Reverifying block-chain: ")
 			prev_block_length := len(block_chain.Blocks)
 			blocks, err := block_chain.VerifyBlocks()
-			fmt.Printf("Validating blocks: #%v discarded, %v\n", int32(prev_block_length) - blocks, err)
+			fmt.Printf("Validating blocks: #%v discarded, %v\n", int32(prev_block_length)-blocks, err)
 
+		case "printpeers":
+		node.PrintConnectedPeers()
 		case "exit":
 			return
 		}
