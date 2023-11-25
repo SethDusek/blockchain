@@ -12,7 +12,7 @@ func mine_n_blocks(t *testing.T, n int, block_chain *BlockChain) {
 		start := time.Now().UnixMilli()
 		block, _ := block_chain.NewBlockCandidate()
 		t.Logf("Target %v\n", big.NewInt(0).SetBytes(block.Header.Target[:]))
-		block.Header = MineBlock(block.Header)
+		block.Header = MineBlock(block.Header, nil, nil)
 		t.Logf("Finding block took %v ms\n", time.Now().UnixMilli()-start)
 		if err := block_chain.AddBlock(*block); err != nil {
 			t.Errorf("Error mining block %v #%v, %+v\n", err, i, block)
@@ -46,7 +46,7 @@ func Test_Mining(t *testing.T) {
 		panic(err)
 	}
 	if !tx.Verify(block_chain.UTXOSet, false, uint32(len(block_chain.Blocks))) {
-		panic(".")
+		panic("verification failed")
 	}
 	t.Logf("Transaction: %+v\n", tx)
 	if len(tx.Inputs) != 11 {

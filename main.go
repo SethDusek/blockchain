@@ -9,7 +9,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"time"
+	//"time"
 
 	//	"bufio"
 	"encoding/json"
@@ -48,12 +48,6 @@ func save_blockchain(blockchain *blockchain.BlockChain) {
 	}
 }
 
-// TODO: figure out how to communicate with goroutines properly
-func miner_thread(candidate_block blockchain.Block, done chan<- blockchain.Block) {
-	candidate_block.Header = blockchain.MineBlock(candidate_block.Header)
-	done <- candidate_block
-}
-
 //	func mine_n_threads(block_chain blockchain.BlockChain, cores uint, done chan <- blockchain.Block) {
 //		chans := make([]chan<-blockchain.Block, cores)
 //		for channel := range chans {
@@ -89,6 +83,8 @@ func main() {
 	for scanner.Scan() {
 		command := strings.Split(scanner.Text(), " ")
 		switch command[0] {
+		case "startminer":
+			node.StartMiner()
 		case "connect":
 			if len(command) != 2 {
 				fmt.Println("Please provide address:port")
@@ -99,22 +95,27 @@ func main() {
 					continue
 				}
 				node.PrintConnectedPeers()
-				go node.Sync()
+				go func() {
+					node.Sync()
+					node.StartMiner()
+				}()
 			}
 
 		case "printchain":
 			block_chain.PrettyPrint()
 		case "mineblock":
-			channel := make(chan blockchain.Block)
-			candidate, err := block_chain.NewBlockCandidate()
-			if err != nil {
-				log.Fatal(err)
-			}
-			start := time.Now().UnixMilli()
-			go miner_thread(*candidate, channel)
-			new_block := <-channel
-			fmt.Printf("Found new block in %v ms\n", time.Now().UnixMilli()-start)
-			block_chain.AddBlock(new_block)
+
+			// channel := make(chan blockchain.Block)
+			// candidate, err := block_chain.NewBlockCandidate()
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			// start := time.Now().UnixMilli()
+			// new_block := <-channel
+			// fmt.Printf("Found new block in %v ms\n", time.Now().UnixMilli()-start)
+			// block_chain.AddBlock(new_block)
+		case "printaddress":
+			fmt.Println(block_chain.Wallet.PublicKey.ToAddress())
 		case "printbalances":
 			balances := make(map[string]uint)
 			for _, output := range block_chain.UTXOSet {
@@ -150,7 +151,7 @@ func main() {
 				fmt.Println(err)
 				continue
 			}
-			if err := block_chain.AddTXToMempool(*tx); err != nil {
+			if err :=  node.NewTransaction(*tx, ""); err != nil {
 				fmt.Println(err)
 				continue
 			}
