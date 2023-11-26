@@ -64,10 +64,8 @@ func (node *Node) NewListener() chan bool {
 
 // Signal that something in the blockchain has changed to all listeners
 func (node *Node) signal_changed() {
-	log.Println("signal_changed called, signaling #", len(node.changed_listeners), "listeners")
 	node.lock.Lock()
 	defer node.lock.Unlock()
-	log.Println("signal_changed called, signaling #", len(node.changed_listeners), "listeners")
 	for _, listener := range node.changed_listeners {
 		select {
 		case listener <- true:
@@ -167,13 +165,13 @@ func (node *Node) Sync() {
 	// Request headers
 
 	// Channel used to receive list of block headers
-
 	type channel_value struct {
 		peer_addr string
 		blocks    []blockchain.Block
 	}
 	channel := make(chan channel_value, len(node.peers))
 
+	// We first request all headers from peers asynchronously
 	i := 0
 	for addr, peer := range node.peers {
 		args := struct {
@@ -193,6 +191,7 @@ func (node *Node) Sync() {
 	}
 	// Sorted by max length
 	var peer_headers [][]blockchain.Block
+	// Receive list of block headers from all peers, and select the longest list of headers that passes verification
 outer:
 	for {
 		select {
