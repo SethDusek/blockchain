@@ -54,6 +54,8 @@ func (private_key PrivateKey) Sign(message []byte) Signature {
 	R := r.PublicKey
 
 	// The hash e commits to the randomness R the public key and the message
+	// Committing to the public key prevents potential related-key attacks and also makes multisignature schemes like MuSig2 more secure,
+	// see https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki#description key-prefixing
 	hasher := sha256.New()
 	hasher.Write(R.X.Bytes())
 	hasher.Write(R.Y.Bytes())

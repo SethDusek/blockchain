@@ -155,6 +155,7 @@ func (tree MerkleTree) PrettyPrint() {
 	queue := make(chan struct{uint; int}, len(tree.Nodes))
 	if len(tree.Nodes) != 0 {
 		queue <- struct{uint; int}{0, 0}
+		fmt.Printf("Level 0: ")
 	} else {
 		return
 	}
@@ -165,8 +166,10 @@ func (tree MerkleTree) PrettyPrint() {
 			break
 		}
 		pair := <-queue
+
 		if pair.uint != prev_level {
 			fmt.Println("")
+			fmt.Printf("Level %v: ", pair.uint)
 			prev_level = pair.uint
 		}
 		if tree.Nodes[pair.int].Hash != nil {

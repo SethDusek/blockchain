@@ -9,9 +9,11 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
 	//"time"
 
 	//	"bufio"
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"os"
@@ -56,7 +58,7 @@ func save_blockchain(blockchain *blockchain.BlockChain) {
 
 func start_http_server(block_chain *blockchain.BlockChain, port int) *p2p.Node {
 	var listener *net.Listener
-	for i := 0; i <= 10; i++ {
+	for i := 0; i <= 30; i++ {
 		server, err := net.Listen("tcp", ":"+strconv.Itoa(port))
 		if err == nil {
 			listener = &server
@@ -172,9 +174,11 @@ func main() {
 			txnum, err := strconv.Atoi(scanner.Text())
 			if err != nil {
 				fmt.Println(err)
+				break
 			}
 			if txnum >= len(block_chain.Blocks[block_num].Transactions) {
 				fmt.Println("Invalid tx")
+				break
 			}
 			fmt.Println("Decrementing output value by 1")
 			block_chain.Blocks[block_num].Transactions[txnum].Outputs[0].Value -= 1
@@ -185,6 +189,25 @@ func main() {
 
 		case "printpeers":
 		node.PrintConnectedPeers()
+		case "printmerkletree":
+			fmt.Println("Enter block hash: ")
+			scanner.Scan()
+			hash_hex := scanner.Text()
+			bytes, err := hex.DecodeString(hash_hex)
+			if err != nil {
+				fmt.Println("Invalid hash")
+				break
+			}
+			idx := block_chain.SearchBlockByHash([32]byte(bytes))
+			if idx == nil {
+				fmt.Println("Block does not exist")
+				break
+			}
+			tree, err := blockchain.MakeTXMerkleTree(block_chain.Blocks[*idx].Transactions, uint32(*idx))
+			if err != nil {
+				log.Fatal(err)
+			}
+			tree.PrettyPrint()
 		case "exit":
 			return
 		}
