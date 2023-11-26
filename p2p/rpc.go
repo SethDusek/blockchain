@@ -125,3 +125,7 @@ func (rpc *RPCResponder) NewTransaction(tx blockchain.Transaction, reply *string
 	}
 	return nil
 }
+
+// func (rpc *RPCResponder) ConvertToClient(args string, reply string) error {
+
+// }
