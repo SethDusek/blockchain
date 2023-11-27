@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	//"time"
+	"time"
 
 	//	"bufio"
 	"encoding/hex"
@@ -56,7 +56,7 @@ func save_blockchain(blockchain *blockchain.BlockChain) {
 //		}
 //	}
 
-func start_http_server(block_chain *blockchain.BlockChain, port int) *p2p.Node {
+func start_tcp_server(block_chain *blockchain.BlockChain, port int) *p2p.Node {
 	var listener *net.Listener
 	for i := 0; i <= 30; i++ {
 		server, err := net.Listen("tcp", ":"+strconv.Itoa(port))
@@ -80,8 +80,8 @@ func main() {
 	defer save_blockchain(&block_chain)
 
 	// Start P2P network
-	node := start_http_server(&block_chain, 8284)
-	fmt.Println("here")
+	node := start_tcp_server(&block_chain, 8284)
+	fmt.Println("Blockchain instance started")
 	for scanner.Scan() {
 		command := strings.Split(scanner.Text(), " ")
 		switch command[0] {
@@ -91,7 +91,7 @@ func main() {
 			if len(command) != 2 {
 				fmt.Println("Please provide address:port")
 			} else {
-				err := node.Connect(command[1])
+				err := node.Connect(command[1], true)
 				if err != nil {
 					log.Println(err)
 					continue
@@ -99,23 +99,21 @@ func main() {
 				node.PrintConnectedPeers()
 				go func() {
 					node.Sync()
-					node.StartMiner()
+					//node.StartMiner()
 				}()
 			}
 
 		case "printchain":
 			block_chain.PrettyPrint()
 		case "mineblock":
-
-			// channel := make(chan blockchain.Block)
-			// candidate, err := block_chain.NewBlockCandidate()
-			// if err != nil {
-			// 	log.Fatal(err)
-			// }
-			// start := time.Now().UnixMilli()
-			// new_block := <-channel
-			// fmt.Printf("Found new block in %v ms\n", time.Now().UnixMilli()-start)
-			// block_chain.AddBlock(new_block)
+			candidate, err := block_chain.NewBlockCandidate()
+			if err != nil {
+				log.Fatal(err)
+			}
+			start := time.Now().UnixMilli()
+			candidate.Header = blockchain.MineBlock(candidate.Header, nil, nil)
+			fmt.Printf("Found new block in %v ms\n", time.Now().UnixMilli()-start)
+			node.NewBlock(*candidate, "")
 		case "printaddress":
 			fmt.Println(block_chain.Wallet.PublicKey.ToAddress())
 		case "printbalances":
@@ -153,11 +151,34 @@ func main() {
 				fmt.Println(err)
 				continue
 			}
-			if err :=  node.NewTransaction(*tx, ""); err != nil {
+			if err := node.NewTransaction(*tx, ""); err != nil {
 				fmt.Println(err)
 				continue
 			}
-			fmt.Printf("Successful tx %+v, added to mempool", tx)
+			fmt.Printf("Successful tx %+x, added to mempool\n", tx.TXID(0))
+		case "createtransactions":
+			utxos := block_chain.FindUTXOsByPublicKey(block_chain.Wallet.PublicKey)
+			fmt.Printf("Enter amount of transactions to create (max %v): ", len(utxos));
+			scanner.Scan()
+			count, err := strconv.Atoi(scanner.Text());
+			if err != nil {
+				fmt.Println(err);
+				continue;
+			}
+			for i, utxo := range utxos {
+				if i == count {
+					break
+				}
+				transaction := blockchain.Transaction{Inputs: make([]blockchain.UTXO, 1), Proofs: make([]schnorr.Signature, 1), Outputs: make([]blockchain.Output, 1)}
+				transaction.Inputs[0] = utxo.UTXO
+				transaction.Outputs[0] = blockchain.Output{Value: utxo.Value, Challenge: block_chain.Wallet.PublicKey}
+				transaction.Sign(&block_chain.UTXOSet, 0, *block_chain.Wallet)
+				if err := node.NewTransaction(transaction, ""); err != nil {
+					fmt.Println(err)
+					continue
+				}
+
+			}
 
 		case "changetransaction":
 			fmt.Println("Enter block #: ")
@@ -169,7 +190,7 @@ func main() {
 			if block_num >= len(block_chain.Blocks) {
 				fmt.Println("Invalid block")
 			}
-			fmt.Println("Enter block #: ")
+			fmt.Println("Enter transaction #: ")
 			scanner.Scan()
 			txnum, err := strconv.Atoi(scanner.Text())
 			if err != nil {
@@ -188,7 +209,7 @@ func main() {
 			fmt.Printf("Validating blocks: #%v discarded, %v\n", int32(prev_block_length)-blocks, err)
 
 		case "printpeers":
-		node.PrintConnectedPeers()
+			node.PrintConnectedPeers()
 		case "printmerkletree":
 			fmt.Println("Enter block hash: ")
 			scanner.Scan()
@@ -208,6 +229,11 @@ func main() {
 				log.Fatal(err)
 			}
 			tree.PrettyPrint()
+		case "mempool":
+			fmt.Println("Printing mempool")
+			for _, tx := range block_chain.Mempool {
+				fmt.Printf("%+v", tx)
+			}
 		case "exit":
 			return
 		}

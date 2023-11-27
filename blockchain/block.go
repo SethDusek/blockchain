@@ -48,15 +48,23 @@ func (header BlockHeader) BlockHash() []byte {
 func MineBlock(header BlockHeader, rcv_channel <-chan BlockHeader, send_channel chan<- BlockHeader) BlockHeader {
 	target_num := big.NewInt(0).SetBytes(header.Target[:])
 	count := 0
+	block_found := false
 	for {
 		if count%1000 == 0 && rcv_channel != nil {
-			select {
-			case new_header := <-rcv_channel:
-				log.Println("Miner thread received new header")
-				header = new_header
-				target_num = big.NewInt(0).SetBytes(header.Target[:])
-				count = 0
-			default:
+		outer:
+			for {
+				select {
+				case new_header := <-rcv_channel:
+					//log.Println("Miner thread received new header")
+					header = new_header
+					target_num = big.NewInt(0).SetBytes(header.Target[:])
+					block_found = false
+					count = 0
+				default:
+					if !block_found {
+						break outer
+					}
+				}
 			}
 		}
 		cur_num := *big.NewInt(0)
@@ -65,9 +73,10 @@ func MineBlock(header BlockHeader, rcv_channel <-chan BlockHeader, send_channel 
 			if send_channel == nil {
 				return header
 			} else {
-				log.Println("Sending new block to other thread")
+				//log.Println("Sending new block to other thread")
 				send_channel <- header
 				count = 0
+				block_found = true
 			}
 
 		}
@@ -85,7 +94,7 @@ type Block struct {
 type BlockChain struct {
 	Blocks  []Block
 	UTXOSet map[UTXO]Output
-	mempool []Transaction
+	Mempool []Transaction
 	// A Wallet for miner and also user of node. If mining is enabled then rewards will be sent to this address
 	Wallet *schnorr.PrivateKey
 }
@@ -123,7 +132,7 @@ func (blockchain *BlockChain) NewBlockCandidate() (*Block, error) {
 	transactions := make([]Transaction, 0)
 	transactions = append(transactions, NewCoinbaseTransaction(blockchain.Wallet.PublicKey))
 
-	for _, tx := range blockchain.mempool {
+	for _, tx := range blockchain.Mempool {
 		if !tx.Verify(utxo_set, false, uint32(len(blockchain.Blocks))) {
 			continue
 		}
@@ -184,14 +193,14 @@ func (blockchain *BlockChain) AddBlock(block Block) error {
 		}
 	}
 	new_mempool := make([]Transaction, 0)
-	for _, tx := range blockchain.mempool {
+	for _, tx := range blockchain.Mempool {
 		if !tx.Verify(blockchain.UTXOSet, false, uint32(len(blockchain.Blocks))) {
 			log.Printf("Pruning transaction %x\n", tx.TXID(uint32(len(blockchain.Blocks))))
 			continue
 		}
 		new_mempool = append(new_mempool, tx)
 	}
-	blockchain.mempool = new_mempool
+	blockchain.Mempool = new_mempool
 	return nil
 }
 
@@ -272,6 +281,8 @@ func VerifyBlock(blocks []Block, block_idx uint32, utxo_set *map[UTXO]Output) bo
 	}
 	if !reflect.DeepEqual(merkle_tree.RootHash(), block.Header.TXRootHash[:]) {
 		fmt.Printf("Merkle Tree equality failed, block header root hash: %x, actual root hash: %x\n", block.Header.TXRootHash, merkle_tree.RootHash())
+		fmt.Printf("Merkle tree: \n")
+		merkle_tree.PrettyPrint()
 		return false
 	}
 	for i, tx := range blocks[block_idx].Transactions {
@@ -291,7 +302,7 @@ func VerifyBlock(blocks []Block, block_idx uint32, utxo_set *map[UTXO]Output) bo
 // Verifies blocks from genesis to tip of chain. If it errors early, it will return the index of the last valid block (or -1 if none are valid) and also delete all the blocks from blockchain that are invalid
 func (blockchain *BlockChain) VerifyBlocks() (int32, error) {
 	new_blockchain := NewBlockChain()
-	copy(new_blockchain.mempool, blockchain.mempool)
+	copy(new_blockchain.Mempool, blockchain.Mempool)
 	new_blockchain.Wallet = blockchain.Wallet
 
 	for i, block := range blockchain.Blocks {
@@ -335,7 +346,7 @@ func (block_chain *BlockChain) AttemptOrphan(blocks []Block) bool {
 		start_idx = *idx + 1
 	}
 	if start_idx+len(blocks) <= len(block_chain.Blocks) {
-		fmt.Printf("New chain is not longer, new chain length %v, our chain length %v\n", start_idx+len(blocks), len(block_chain.Blocks))
+		//fmt.Printf("New chain is not longer, new chain length %v, our chain length %v\n", start_idx+len(blocks), len(block_chain.Blocks))
 		return false
 	}
 	cloned_chain.Blocks = make([]Block, 0)
@@ -428,22 +439,22 @@ func (block_chain *BlockChain) AddTXToMempool(tx Transaction) error {
 	if !tx.Verify(block_chain.UTXOSet, false, uint32(len(block_chain.Blocks))) {
 		return errors.New("Error validating transaction")
 	}
-	for _, mempool_tx := range block_chain.mempool {
+	for _, mempool_tx := range block_chain.Mempool {
 		block_height := uint32(len(block_chain.Blocks))
 		if mempool_tx.TXID(block_height) == tx.TXID(block_height) {
 			return errors.New("TX already in mempool")
 		}
 	}
 
-	block_chain.mempool = append(block_chain.mempool, tx)
+	block_chain.Mempool = append(block_chain.Mempool, tx)
 	return nil
 }
 
 func (block_chain *BlockChain) PrettyPrint() {
 	writer := tabwriter.NewWriter(os.Stdout, 1, 4, 4, ' ', 0)
-	fmt.Fprintf(writer, "Block Hash\tTX Root Hash\t#Transactions\n")
+	fmt.Fprintf(writer, "Block Hash\tNonce\tTX Root Hash\t#Transactions\n")
 	for _, block := range block_chain.Blocks {
-		fmt.Fprintf(writer, "%x\t%x\t%v\n\t \n\t↓\n\n", block.Header.BlockHash(), block.Header.TXRootHash, len(block.Transactions))
+		fmt.Fprintf(writer, "%x\t%v\t%x\t%v\n\t \n\t↓\n\n", block.Header.BlockHash(), block.Header.Nonce, block.Header.TXRootHash, len(block.Transactions))
 	}
 	writer.Flush()
 }

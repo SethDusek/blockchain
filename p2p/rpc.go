@@ -20,8 +20,8 @@ func NewRPCResponder(node *Node, conn net.Conn) RPCResponder {
 
 // Request blocks[start..end]. If end == start == -1 then return all blocks
 func (rpc *RPCResponder) GetBlocks(args *struct {
-	Start int
-	End   int
+	Start       int
+	End         int
 	HeadersOnly bool
 }, reply *[]blockchain.Block) error {
 	node := rpc.Node
@@ -43,7 +43,6 @@ func (rpc *RPCResponder) GetBlocks(args *struct {
 	} else {
 		return errors.New("end > total Number of blocks")
 	}
-	log.Println("Start, end:", start,end)
 	blocks := make([]blockchain.Block, 0, args.End-args.Start)
 
 	for _, block := range node.block_chain.Blocks[start:end] {
@@ -57,7 +56,10 @@ func (rpc *RPCResponder) GetBlocks(args *struct {
 }
 
 // Return count blocks after block_hash
-func (rpc *RPCResponder) GetBlocksByHash(args struct {BlockHash [32]byte; Count uint}, reply *[]blockchain.Block) error {
+func (rpc *RPCResponder) GetBlocksByHash(args struct {
+	BlockHash [32]byte
+	Count     uint
+}, reply *[]blockchain.Block) error {
 	node := rpc.Node
 	rpc.Node.lock.RLock()
 	defer rpc.Node.lock.RUnlock()
@@ -77,13 +79,11 @@ func (rpc *RPCResponder) GetBlocksByHash(args struct {BlockHash [32]byte; Count 
 	}
 }
 
-
 // This RPC call returns all the peers the RPC server is connected to
 func (rpc *RPCResponder) GetPeers(args string, reply *[]string) error {
 	node := rpc.Node
 	node.lock.RLock()
 	defer node.lock.RUnlock()
-	log.Println("RPCResponder.GetPeers called")
 	*reply = make([]string, 0)
 	for addr := range node.peers {
 		*reply = append(*reply, addr)
@@ -93,7 +93,7 @@ func (rpc *RPCResponder) GetPeers(args string, reply *[]string) error {
 
 // Signals to the RPC server that the client is accepting inbound connections on their node on port *args*
 func (rpc *RPCResponder) Connect(port uint16, reply *string) error {
-	log.Println("RPCResponder.Connect called")
+	//log.Println("RPCResponder.Connect called")
 	var conn_addr string
 	switch addr := rpc.Conn.RemoteAddr().(type) {
 	case *net.UDPAddr:
@@ -103,16 +103,16 @@ func (rpc *RPCResponder) Connect(port uint16, reply *string) error {
 	}
 	conn_addr += ":" + strconv.Itoa(int(port))
 	log.Println("Attempting connection to", conn_addr)
-	go rpc.Node.Connect(conn_addr)
+	go rpc.Node.Connect(conn_addr, false)
 	*reply = ""
 	return nil
 }
 
 func (rpc *RPCResponder) NewBlock(block blockchain.Block, reply *string) error {
-	log.Println("RPCResponder.NewBlock called")
-	log.Printf("%+x", block)
+	//log.Println("RPCResponder.NewBlock called")
+	//log.Printf("%+x", block)
 	if err := rpc.Node.NewBlock(block, rpc.Conn.RemoteAddr().String()); err != nil {
-		log.Println("RPCResponder.NewBlock error", err)
+		//log.Println("RPCResponder.NewBlock error", err)
 	}
 	return nil
 }

@@ -58,16 +58,16 @@ func Test_Mining(t *testing.T) {
 		return
 	}
 
-	block_chain.mempool = append(block_chain.mempool, *tx)
+	block_chain.Mempool = append(block_chain.Mempool, *tx)
 	// Also attempt a double-spend while we're at it
-	block_chain.mempool = append(block_chain.mempool, *tx)
+	block_chain.Mempool = append(block_chain.Mempool, *tx)
 	// Mine a new block, which *hopefully* includes our new transaction
 	mine_n_blocks(t, 1, &block_chain)
 	if len(block_chain.Blocks[len(block_chain.Blocks)-1].Transactions) != 2 {
 		panic("Expected 2 transactions, found 1")
 	}
 	// Attempt another double-spend for fun
-	block_chain.mempool = append(block_chain.mempool, *tx)
+	block_chain.Mempool = append(block_chain.Mempool, *tx)
 	mine_n_blocks(t, 1, &block_chain)
 	if len(block_chain.Blocks[len(block_chain.Blocks)-1].Transactions) != 1 {
 		panic("Expected 1 transactions, found 2")
