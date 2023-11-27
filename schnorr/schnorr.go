@@ -75,6 +75,18 @@ func (private_key PrivateKey) Sign(message []byte) Signature {
 	return Signature{R.X, R.Y, s}
 }
 
+// Signs a message e that's already generated and committed
+func (private_key PrivateKey) SignCommittment(r *big.Int, e *big.Int) Signature {
+	ed := big.NewInt(0)
+	ed = ed.Mul(e, private_key.D)
+	ed = ed.Mod(ed, elliptic.P256().Params().N)
+	s := big.NewInt(0)
+	s = s.Add(r, ed)
+	s = s.Mod(s, elliptic.P256().Params().N)
+	Rx, Ry := elliptic.P256().ScalarBaseMult(r.Bytes())
+	return Signature{Rx, Ry, s}
+}
+
 // To verify we take s = r + ed
 // and perform one scalar base multiplication sG = G(r + ed) = sG = R + eD
 func (public_key PublicKey) Verify(message []byte, signature Signature) bool {

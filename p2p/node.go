@@ -4,9 +4,12 @@ import (
 	"blockchain/blockchain"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"net/rpc"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -89,6 +92,7 @@ func (node *Node) StartMiner() {
 		node.lock.RLock()
 		candidate, err := node.block_chain.NewBlockCandidate()
 		node.lock.RUnlock()
+		candidate.Header.Nonce = rand.Uint64()
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -97,18 +101,19 @@ func (node *Node) StartMiner() {
 			select {
 			// Something in block-chain has changed, create a new block candidate and send it to miner
 			case <-listener:
-				log.Println("Building new block candidate at block height", len(node.block_chain.Blocks))
+				//log.Println("Building new block candidate at block height", len(node.block_chain.Blocks))
 				node.lock.RLock()
 				candidate, err = node.block_chain.NewBlockCandidate()
 				node.lock.RUnlock()
-				log.Println("Built new block candidate at block height", len(node.block_chain.Blocks))
+				//log.Println("Built new block candidate at block height", len(node.block_chain.Blocks))
 				if err != nil {
 					log.Fatal(err)
 				}
 				go func() { send_channel <- candidate.Header }()
-				log.Println("Sent block candidate to miner")
+				//log.Println("Sent block candidate to miner")
 			case mined_header := <-rcv_channel:
 				log.Println("Miner has found new block! Broadcasting")
+				//log.Printf("%+v\n", mined_header)
 				candidate.Header = mined_header
 				node.NewBlock(*candidate, "")
 			}
@@ -118,7 +123,7 @@ func (node *Node) StartMiner() {
 
 }
 
-func (node *Node) Connect(address string) error {
+func (node *Node) Connect(address string, bootstrap bool) error {
 	_, already_connected := node.peers[address]
 	if !already_connected {
 		log.Println("Node connecting to ", address)
@@ -133,6 +138,26 @@ func (node *Node) Connect(address string) error {
 		var reply string
 		if err := client.Call("RPCResponder.Connect", node.port, &reply); err != nil {
 			log.Println("Error calling RPCResponder.Connect", err)
+		}
+		if bootstrap {
+			peers := make([]string, 0)
+			err = client.Call("RPCResponder.GetPeers", "", &peers)
+			log.Println("RPCResponder.Getpeers returned")
+			if err == nil {
+				for _, peer := range peers {
+					client, err := rpc.Dial("tcp", peer)
+					log.Println("Connecting to ", peer, node.address)
+					if err == nil && strings.Split(peer, ":")[1] != strconv.Itoa(int(node.port)) {
+						node.peers[peer] = client
+						var reply string
+						client.Call("RPCResponder.Connect", node.port, &reply)
+					} else {
+						log.Println("Error", err)
+					}
+				}
+			} else {
+				log.Println("getpeers err", err)
+			}
 		}
 	} else {
 		log.Println("Already connected to", address)
@@ -161,7 +186,7 @@ func (node *Node) PrintConnectedPeers() {
 
 // Synchronizes node with longest chain on network.
 func (node *Node) Sync() {
-	log.Println("Node.Sync called")
+	//log.Println("Node.Sync called")
 	// Request headers
 
 	// Channel used to receive list of block headers
@@ -270,11 +295,11 @@ func (node *Node) NewBlock(block blockchain.Block, src string) error {
 
 	var err error
 	if err = node.block_chain.AddBlock(block); err != nil {
-		log.Println("Error adding new block to chain", err)
+		//log.Println("Error adding new block to chain", err)
 	}
 	// If the block we've been given does not match our longest chain, request a bunch of blocks previous to this block
 	if block.Header.PrevHash != [32]byte(node.block_chain.Blocks[len(node.block_chain.Blocks)-1].Header.BlockHash()) {
-		log.Println("Maybe found new longest chain, attempting to synchronize")
+		//log.Println("Maybe found new longest chain, attempting to synchronize")
 		maybe_longer_chain := make([]blockchain.Block, 0)
 		maybe_longer_chain = append(maybe_longer_chain, block)
 	outer:
@@ -318,7 +343,7 @@ func (node *Node) NewBlock(block blockchain.Block, src string) error {
 			log.Printf("New longest chain has been found! Previous length: %v, new length: %v\n", prev_length, len(node.block_chain.Blocks))
 			err = nil
 		} else {
-			log.Printf("We have the longest chain\n")
+			//log.Printf("We have the longest chain\n")
 		}
 
 	}
@@ -349,10 +374,10 @@ func (node *Node) NewBlock(block blockchain.Block, src string) error {
 // Adds a new transaction to the mempool and floods it to all peers except src
 func (node *Node) NewTransaction(tx blockchain.Transaction, src string) error {
 	node.lock.Lock()
-	log.Println("Node.NewTransaction called")
+	//log.Println("Node.NewTransaction called")
 
 	if err := node.block_chain.AddTXToMempool(tx); err != nil {
-		log.Println("Error adding new transaction to mempool", err)
+		//log.Println("Error adding new transaction to mempool", err)
 		node.lock.Unlock()
 		return err
 	}
